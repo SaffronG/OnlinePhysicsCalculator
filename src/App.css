@@ -1,0 +1,16 @@
+#root {
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+body {
+  color: black;
+}
+
+#jax_context {
+  display: flex-column;
+}
+
+#expression_render {
+}
