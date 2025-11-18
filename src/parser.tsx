@@ -1,0 +1,201 @@
+const PRECEDENCE = {
+  "=": 1,
+  "+": 10,
+  "-": 10,
+  "*": 20,
+  "/": 20,
+  "^": 30,
+};
+
+export function evaluateTokens(tokens, env = {}) {
+  const ast = parseExpression(tokens);
+  const vars = collectVariables(ast);
+  for (const name of vars) {
+    if (!(name in env)) {
+      const val = prompt(`Enter a value for ${name}:`);
+      env[name] = Number(val);
+    }
+  }
+
+  return evalAST(ast, env);
+}
+
+function parseExpression(tokens) {
+  let i = 0;
+
+  function peek() {
+    return tokens[i];
+  }
+
+  function consume() {
+    return tokens[i++];
+  }
+
+  function parseAtom() {
+    const tok = consume();
+
+    if (!tok) throw new Error("Unexpected end of input");
+
+    // number literal
+    if (tok.type === "number") {
+      return { type: "Literal", value: tok.value };
+    }
+
+    // variable, identifier, or constant
+    if (
+      tok.type === "variable" ||
+      tok.type === "identifier" ||
+      tok.type === "constant"
+    ) {
+      return { type: "Variable", name: tok.value };
+    }
+
+    // unary "-"
+    if (tok.type === "operator" && tok.value === "-") {
+      return { type: "Unary", op: "-", expr: parseAtom() };
+    }
+
+    if (tok.value === "(") {
+      const expr = parseBinary(parseAtom(), 0);
+      if (!peek() || peek().value !== ")") {
+        throw new Error("Expected ')'");
+      }
+      consume();
+      return expr;
+    }
+
+    throw new Error("Unexpected token " + JSON.stringify(tok));
+  }
+
+  // Implied multiplication (r w → r * w)
+  function maybeImpliedMult(left) {
+    while (
+      peek() &&
+      (peek().type === "number" ||
+        peek().type === "variable" ||
+        peek().type === "identifier" ||
+        peek().value === "(")
+    ) {
+      const right = parseAtom();
+      left = { type: "Binary", op: "*", left, right };
+    }
+    return left;
+  }
+
+  function parseAssignment(left) {
+    if (left.type !== "Variable") {
+      throw new Error("Left side of '=' must be a variable.");
+    }
+    consume(); // '='
+    const right = parseBinary(parseAtom(), PRECEDENCE["="]);
+    return { type: "Assign", name: left.name, value: right };
+  }
+
+  function parseBinary(left, minPrec) {
+    left = maybeImpliedMult(left);
+
+    while (peek() && peek().type === "operator") {
+      const op = peek().value;
+      const prec = PRECEDENCE[op];
+
+      if (prec < minPrec) break;
+
+      // Special case: assignment ONLY if operator is "=" AND left is variable
+      if (op === "=") {
+        return parseAssignment(left);
+      }
+
+      consume(); // operator
+
+      let right = parseAtom();
+      right = maybeImpliedMult(right);
+
+      // Higher-precedence operators bind tighter
+      while (peek() && peek().type === "operator") {
+        const nextOp = peek().value;
+        if (PRECEDENCE[nextOp] > prec) {
+          right = parseBinary(right, PRECEDENCE[nextOp]);
+        } else break;
+      }
+
+      left = { type: "Binary", op, left, right };
+    }
+
+    return left;
+  }
+
+  return parseBinary(parseAtom(), 0);
+}
+
+function collectVariables(node, set = new Set()) {
+  if (!node) return set;
+
+  switch (node.type) {
+    case "Variable":
+      set.add(node.name);
+      break;
+
+    case "Literal":
+      break;
+
+    case "Unary":
+      collectVariables(node.expr, set);
+      break;
+
+    case "Binary":
+      collectVariables(node.left, set);
+      collectVariables(node.right, set);
+      break;
+
+    case "Assign":
+      // include left variable AND right-hand expression
+      set.add(node.name);
+      collectVariables(node.value, set);
+      break;
+  }
+
+  return set;
+}
+
+function evalAST(node, env) {
+  switch (node.type) {
+    case "Literal":
+      return node.value;
+
+    case "Variable":
+      if (!(node.name in env)) {
+        throw new Error("Variable not provided: " + node.name);
+      }
+      return env[node.name];
+
+    case "Unary":
+      return -evalAST(node.expr, env);
+
+    case "Binary": {
+      const a = evalAST(node.left, env);
+      const b = evalAST(node.right, env);
+
+      switch (node.op) {
+        case "+":
+          return a + b;
+        case "-":
+          return a - b;
+        case "*":
+          return a * b;
+        case "/":
+          return a / b;
+        case "^":
+          return Math.pow(a, b);
+      }
+      break;
+    }
+
+    case "Assign": {
+      const val = evalAST(node.value, env);
+      env[node.name] = val;
+      return val;
+    }
+  }
+
+  throw new Error("Unknown node type: " + node.type);
+}

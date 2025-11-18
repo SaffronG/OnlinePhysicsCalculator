@@ -174,7 +174,7 @@ export const decorators: string[] = [
   "underset",
 ];
 
-export const specialCharacters = [
+export const specialCharactersFlat = [
   "+",
   "-",
   "*",
