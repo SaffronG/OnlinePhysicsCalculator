@@ -24,6 +24,10 @@ export default function LiveMath() {
     setHistory((prevArray) => [...prevArray, insertItem]);
   };
 
+  const clear = () => {
+    setHistory((prevArray)) => [];
+  };
+
   // FIX: rename to solve(), use mathEval()
   const solve = () => {
     const tokens = tokenizeExpression(expr);
@@ -86,6 +90,12 @@ export default function LiveMath() {
             onClick={solve}
           >
             Solve
+          </button>
+          <button
+            style={{ marginLeft: "0.5rem", padding: "0.5rem 1rem" }}
+            onClick={clear}
+          >
+            Clear
           </button>
         </main>
       </MathJaxContext>
